@@ -19,6 +19,8 @@ import copy
 import csv
 import smbus2 as smbus
 
+from estimator import EKF
+from model import CustModel
 
 application = Flask(__name__)
 application.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0 #Try this https://stackoverflow.com/questions/23112316/using-flask-how-do-i-modify-the-cache-control-header-for-all-output/23115561#23115561
@@ -59,6 +61,7 @@ sysData = {'M0' : {
    'OD0' : {'target' : 0.0,'raw' : 0.0,'max' : 100000.0,'min': 0.0,'LASERb' : 1.833 ,'LASERa' : 0.226, 'LEDFa' : 0.673, 'LEDAa' : 7.0  },
    'Chemostat' : {'ON' : 0, 'p1' : 0.0, 'p2' : 0.1},
    'Zigzag': {'ON' : 0, 'Zig' : 0.04,'target' : 0.0,'SwitchPoint' : 0},
+   'Community': {'ON' : 0, 'target' : 0, 'error' : 0, 'decision': 0, 'estKF': 0},
    'GrowthRate': {'current' : 0.0,'record' : [],'default' : 2.0},
    'Volume' : {'target' : 20.0,'max' : 50.0, 'min' : 0.0,'ON' : 0},
    'Pump1' :  {'target' : 0.0,'default' : 0.0,'max': 1.0, 'min' : -1.0, 'direction' : 1.0, 'ON' : 0,'record' : [], 'thread' : 0},
@@ -164,6 +167,9 @@ sysItems = {
         '0x13' : {'A' : 'FLICKER', 'B' : 'NIR'},
     }
 }
+
+model = CustModel(n_reactors = 8)
+est = {'M{}'.format(j) : EKF(model, j) for j in range(8)}
    
 
 
@@ -1219,8 +1225,37 @@ def CustomProgram(M):
             SetOutputOn(M,'UV',1) #Activate UV
             time.sleep(Dose) #Wait for dose to be administered
             SetOutputOn(M,'UV',0) #Deactivate UV
-                
-                
+
+    elif (program == 'C8'): # use this program to control Ec Pp community using temperature ZERO TOLERANCE EDITION
+        global est
+        addTerminal(M, "Community Control activated - temp control")
+        CommTarget = sysData[M]['Custom']['Status'] # takes target value from the custom input box
+        now = datetime.now()
+        TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
+        CurrentTime=round(TimeDur.total_seconds(),2)
+        CurrentTemp = sysData[M]['ThermometerIR']['current']
+        CurrentOD = sysData[M]['OD']['current']
+        CurrentFl = sysData[M]['FP1']['Emit1'] # this signal MUST be tracked from FP1 emit1
+        z = np.array([CurrentFl, CurrentOD])
+        est[M].estimate(CurrentTime, CurrentTemp, z)
+        CommEst = est[M].est['p']/(est[M].est['p']+est[M].est['e'])*100
+        CommError = CommTarget - CommEst #this should be negative if above target, positive if below
+        sysData[M]['Community']['estKF'] = CommEst #this stores this value for easy plotting after the experiment
+        
+        if CommError > 0 :
+            addTerminal(M, "below target, setting temp to 26")
+            sysData[M]['Community']['decision'] = 1 #need to add this to the recording output csv
+            sysData[M]['Thermostat']['target'] = 26 #temp to be pro pseudomonas
+            
+        elif CommError == 0 : 
+            addTerminal(M, "No selective action taken")
+            sysData[M]['Community']['decision'] = 0 #need to add this to the recording output csv
+            
+        
+        elif CommError < 0: 
+            addTerminal(M, "Above target, setting temp target to 37")
+            sysData[M]['Community']['decision'] = 0 #need to add this to the recording output csv
+            sysData[M]['Thermostat']['target'] = 37 #temp for pro coli
     
     return
 
@@ -1248,7 +1283,7 @@ def SetLightActuation(Excite):
     item="Light"
     if sysData[M][item]['ON']==1:
         sysData[M][item]['ON']=0
-	SetOutputOn(M,sysData[M][item]['Excite'],0) #In case the current LED is on we need to make sure it turns off
+        SetOutputOn(M,sysData[M][item]['Excite'],0) #In case the current LED is on we need to make sure it turns off
         return ('', 204)
     else:
         sysData[M][item]['Excite']=str(Excite)
@@ -1736,8 +1771,9 @@ def csvData(M):
 
     fieldnames = ['exp_time','od_measured','od_setpoint','od_zero_setpoint','thermostat_setpoint','heating_rate',
                   'internal_air_temp','external_air_temp','media_temp','opt_gen_act_int','pump_1_rate','pump_2_rate',
-                  'pump_3_rate','pump_4_rate','media_vol','stirring_rate','LED_395nm_setpoint','LED_457nm_setpoint',
-                  'LED_500nm_setpoint','LED_523nm_setpoint','LED_595nm_setpoint','LED_623nm_setpoint',
+                  'pump_3_rate','pump_4_rate','media_vol','stirring_rate',
+                  'comm_target','comm_decision','comm_on','comm_est',
+                  'LED_395nm_setpoint','LED_457nm_setpoint','LED_500nm_setpoint','LED_523nm_setpoint','LED_595nm_setpoint','LED_623nm_setpoint',
                   'LED_6500K_setpoint','laser_setpoint','LED_UV_int','FP1_base','FP1_emit1','FP1_emit2','FP2_base',
                   'FP2_emit1','FP2_emit2','FP3_base','FP3_emit1','FP3_emit2','custom_prog_param1','custom_prog_param2',
                   'custom_prog_param3','custom_prog_status','zigzag_target','growth_rate']
@@ -1757,7 +1793,11 @@ def csvData(M):
         sysData[M]['Pump3']['record'][-1],
         sysData[M]['Pump4']['record'][-1],
         sysData[M]['Volume']['target'],
-        sysData[M]['Stir']['target']*sysData[M]['Stir']['ON'],]
+        sysData[M]['Stir']['target']*sysData[M]['Stir']['ON'],
+        sysData[M]['Community']['target'],
+        sysData[M]['Community']['decision'],
+        sysData[M]['Community']['ON'],
+        sysData[M]['Community']['estKF']]
     for LED in ['LEDA','LEDB','LEDC','LEDD','LEDE','LEDF','LEDG','LASER650']:
         row=row+[sysData[M][LED]['target']]
     row=row+[sysData[M]['UV']['target']*sysData[M]['UV']['ON']]
