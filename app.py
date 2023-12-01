@@ -1072,13 +1072,15 @@ def CustomProgram(M):
     program=sysData[M]['Custom']['Program']
     #Subsequent few lines reads in external parameters from a file if you are using any.
     fname='InputParameters_' + str(M)+'.csv'
+    try:
+        with open(fname, 'rb') as f:
+            reader = csv.reader(f)
+            listin = list(reader)
+        Params=listin[0]
+    except:
+        pass
 	
-    with open(fname, 'rb') as f:
-        reader = csv.reader(f)
-        listin = list(reader)
-    Params=listin[0]
-    addTerminal(M,'Running Program = ' + str(program) + ' on device ' + str(M))
-	
+    sysData[M]['Community']['ON'] = 0
 	
     if (program=="C1"): #Optogenetic Integral Control Program
         integral=0.0 #Integral in integral controller
@@ -1229,6 +1231,7 @@ def CustomProgram(M):
     elif (program == 'C8'): # use this program to control Ec Pp community using temperature ZERO TOLERANCE EDITION
         global est
         addTerminal(M, "Community Control activated - temp control")
+        sysData[M]['Community']['ON'] = 1
         CommTarget = sysData[M]['Custom']['Status'] # takes target value from the custom input box
         now = datetime.now()
         TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
@@ -1238,7 +1241,7 @@ def CustomProgram(M):
         CurrentFl = sysData[M]['FP1']['Emit1'] # this signal MUST be tracked from FP1 emit1
         z = np.array([CurrentFl, CurrentOD])
         est[M].estimate(CurrentTime, CurrentTemp, z)
-        CommEst = est[M].est['p']/(est[M].est['p']+est[M].est['e'])*100
+        CommEst = round(est[M].est['p']/(est[M].est['p']+est[M].est['e'])*100,2)
         CommError = CommTarget - CommEst #this should be negative if above target, positive if below
         sysData[M]['Community']['estKF'] = CommEst #this stores this value for easy plotting after the experiment
         
@@ -1772,7 +1775,7 @@ def csvData(M):
     fieldnames = ['exp_time','od_measured','od_setpoint','od_zero_setpoint','thermostat_setpoint','heating_rate',
                   'internal_air_temp','external_air_temp','media_temp','opt_gen_act_int','pump_1_rate','pump_2_rate',
                   'pump_3_rate','pump_4_rate','media_vol','stirring_rate',
-                  'comm_target','comm_decision','comm_on','comm_est',
+                  'comm_on','comm_decision','comm_est',
                   'LED_395nm_setpoint','LED_457nm_setpoint','LED_500nm_setpoint','LED_523nm_setpoint','LED_595nm_setpoint','LED_623nm_setpoint',
                   'LED_6500K_setpoint','laser_setpoint','LED_UV_int','FP1_base','FP1_emit1','FP1_emit2','FP2_base',
                   'FP2_emit1','FP2_emit2','FP3_base','FP3_emit1','FP3_emit2','custom_prog_param1','custom_prog_param2',
@@ -1794,9 +1797,8 @@ def csvData(M):
         sysData[M]['Pump4']['record'][-1],
         sysData[M]['Volume']['target'],
         sysData[M]['Stir']['target']*sysData[M]['Stir']['ON'],
-        sysData[M]['Community']['target'],
-        sysData[M]['Community']['decision'],
         sysData[M]['Community']['ON'],
+        sysData[M]['Community']['decision'],
         sysData[M]['Community']['estKF']]
     for LED in ['LEDA','LEDB','LEDC','LEDD','LEDE','LEDF','LEDG','LASER650']:
         row=row+[sysData[M][LED]['target']]
