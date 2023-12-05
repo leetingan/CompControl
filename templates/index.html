@@ -1332,23 +1332,20 @@
   
   
 
-  <div class="row">
-    <div class="col-4">
-      
+    <div class="row">
+        <div class="col-4">
+            <div id="chart_div7"></div>
 
-    
-    <div id="chart_div7"></div>
+        </div>
 
-      
+        <div class="col-4">
+            <div align='center'><h3>Putida Estimation</h3> </div>  
+            <div id="chart_div8"></div>
+        </div>
     </div>
-  </div>
-  
-  
-  
   
   
   <hr>
-  
   
   
 <br>
@@ -1358,10 +1355,18 @@
 
 
 
+<style>
+    .center-div {
+      margin-left: auto;
+      margin-right: auto;
+      width: 50%;
+    }
+</style>
+<!-- This section deals with the terminal, to send something to the terminal assign its value to TerminalText then run addTerminal() -->
 
-<!–– This section deals with the terminal, to send something to the terminal assign its value to TerminalText then run addTerminal() -->
+<div class="row">
 
-<center>
+<div class="center-div">
 
 <b>Status Terminal - </b> 
     <button id="ClearTerminal">Clear Terminal</button><br><br>
@@ -1380,13 +1385,8 @@
         });
     </script>
     
-    
-<div id="termI" style="height:500px;width:90%;text-align:left;background-color:black;color:white;border:1px solid #ccc;font:16px/26px Georgia, Garamond, Serif;overflow:auto;">
-    
+<div id="termI" style="height:500px;width:90%;text-align:left;background-color:black;color:white;border:1px solid #ccc;font:16px/26px Georgia, Garamond, Serif;overflow:auto;"> </div>
 
-
-
-</div>
 <button id="CharacteriseDevice">Characterise</button>
 
 <select id="CHProgram">
@@ -1401,13 +1401,15 @@
 					   <option value="C9">C9</option>
 					   <option value="C10">C10</option>
 </select>
-</center>
+
+</div> 
+
+</div> 
 
 
 
 
 <br><br>
-
 
 
 

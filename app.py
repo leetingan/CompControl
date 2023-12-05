@@ -61,7 +61,7 @@ sysData = {'M0' : {
    'OD0' : {'target' : 0.0,'raw' : 0.0,'max' : 100000.0,'min': 0.0,'LASERb' : 1.833 ,'LASERa' : 0.226, 'LEDFa' : 0.673, 'LEDAa' : 7.0  },
    'Chemostat' : {'ON' : 0, 'p1' : 0.0, 'p2' : 0.1},
    'Zigzag': {'ON' : 0, 'Zig' : 0.04,'target' : 0.0,'SwitchPoint' : 0},
-   'Community': {'ON' : 0, 'target' : 0, 'error' : 0, 'decision': 0, 'estKF': 0},
+   'Community': {'ON' : 0, 'error' : 0, 'decision': 0, 'estKF': 0, 'estRecord' : [], 'tarRecord' : []},
    'GrowthRate': {'current' : 0.0,'record' : [],'default' : 2.0},
    'Volume' : {'target' : 20.0,'max' : 50.0, 'min' : 0.0,'ON' : 0},
    'Pump1' :  {'target' : 0.0,'default' : 0.0,'max': 1.0, 'min' : -1.0, 'direction' : 1.0, 'ON' : 0,'record' : [], 'thread' : 0},
@@ -355,6 +355,8 @@ def initialise(M):
     sysData[M]['Thermostat']['record']=[]
 	
     sysData[M]['GrowthRate']['record']=[]
+    sysData[M]['Community']['estRecord']=[]
+    sysData[M]['Community']['tarRecord']=[]
 
     sysDevices[M]['ThermometerInternal']['device']=I2C.get_i2c_device(0x18,2) #Get Thermometer on Bus 2!!!
     sysDevices[M]['ThermometerExternal']['device']=I2C.get_i2c_device(0x1b,2) #Get Thermometer on Bus 2!!!
@@ -1886,6 +1888,8 @@ def downsample(M):
     sysData[M]['Pump3']['record']=downsampleFunc(sysData[M]['Pump3']['record'],index)
     sysData[M]['Pump4']['record']=downsampleFunc(sysData[M]['Pump4']['record'],index)
     sysData[M]['GrowthRate']['record']=downsampleFunc(sysData[M]['GrowthRate']['record'],index)
+    sysData[M]['Community']['estRecord']=downsampleFunc(sysData[M]['Community']['estRecord'],index)
+    sysData[M]['Community']['tarRecord']=downsampleFunc(sysData[M]['Community']['tarRecord'],index)
     
         
     for FP in ['FP1','FP2','FP3']:
@@ -2208,6 +2212,8 @@ def runExperiment(M,placeholder):
     sysData[M]['Pump3']['record'].append(sysData[M]['Pump3']['target']*float(sysData[M]['Pump3']['ON']))
     sysData[M]['Pump4']['record'].append(sysData[M]['Pump4']['target']*float(sysData[M]['Pump4']['ON']))
     sysData[M]['GrowthRate']['record'].append(sysData[M]['GrowthRate']['current']*float(sysData[M]['Zigzag']['ON']))
+    sysData[M]['Community']['estRecord'].append(sysData[M]['Community']['estKF']*float(sysData[M]['Community']['ON']))
+    sysData[M]['Community']['tarRecord'].append(sysData[M]['Custom']['Status']*float(sysData[M]['Community']['ON']))
     for FP in ['FP1','FP2','FP3']:
         if sysData[M][FP]['ON']==1:
             sysData[M][FP]['BaseRecord'].append(sysData[M][FP]['Base'])

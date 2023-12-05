@@ -542,6 +542,8 @@ function updateData(data){
 		    if (data.Zigzag.ON==1){
 		  drawChart2(1,7,data.time.record.toString(),data.GrowthRate.record.toString(),"" ,"","","","",'Time (h)','Growth Rate','Growth Rate,')
 		  }
+          
+          drawChart2(2,8,data.time.record.toString(),data.Community.tarRecord.toString(),data.Community.estRecord.toString(),"","","","",'Time (h)','Putida Percentage','Target, Estimate')
 		  
 
         }
