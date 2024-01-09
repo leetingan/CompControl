@@ -170,6 +170,7 @@ sysItems = {
 
 model = CustModel(n_reactors = 8)
 est = {'M{}'.format(j) : EKF(model, j) for j in range(8)}
+CommErrCum = {'M{}'.format(j) : 0 for j in range(8)}
    
 
 
@@ -1229,38 +1230,66 @@ def CustomProgram(M):
             SetOutputOn(M,'UV',1) #Activate UV
             time.sleep(Dose) #Wait for dose to be administered
             SetOutputOn(M,'UV',0) #Deactivate UV
+        
+    elif (program=="C7"): # use this code for Ec Pp community parameterization
+        now = datetime.now()
+        TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
+        CurrentTime = round(TimeDur.total_seconds()/3600,4)
+        if (CurrentTime < 12):
+            sysData[M]['Thermostat']['target'] = 30 + int(M[-1])
+            if M == 'M7':
+                sysData[M]['Thermostat']['target'] = 33.5
+        else:
+            sysData[M]['Thermostat']['target'] = 36 - int(M[-1])
+            if M == 'M7':
+                sysData[M]['Thermostat']['target'] = 34.5
+        
 
     elif (program == 'C8'): # use this program to control Ec Pp community using temperature ZERO TOLERANCE EDITION
         global est
+        global CommErrCum
         addTerminal(M, "Community Control activated - temp control")
         sysData[M]['Community']['ON'] = 1
         CommTarget = sysData[M]['Custom']['Status'] # takes target value from the custom input box
         now = datetime.now()
         TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
-        CurrentTime=round(TimeDur.total_seconds(),2)
+        CurrentTime = round(TimeDur.total_seconds(),2)
         CurrentTemp = sysData[M]['ThermometerIR']['current']
         CurrentOD = sysData[M]['OD']['current']
         CurrentFl = sysData[M]['FP1']['Emit1'] # this signal MUST be tracked from FP1 emit1
         z = np.array([CurrentFl, CurrentOD])
         est[M].estimate(CurrentTime, CurrentTemp, z)
         CommEst = round(est[M].est['p']/(est[M].est['p']+est[M].est['e'])*100,2)
-        CommError = CommTarget - CommEst #this should be negative if above target, positive if below
+        CommErr = CommTarget - CommEst #this should be negative if above target, positive if below
         sysData[M]['Community']['estKF'] = CommEst #this stores this value for easy plotting after the experiment
+
+        CritTemp = 33.5 # around this temperature both bacteria should be growing at the same rate
+        # use PI controller instead
+        k_p = 3/100
+        k_i = 3/100/20
+        CommErrCum[M] += CommErr * k_i
+        ThTarget = CritTemp + CommErr * k_p + CommErrCum[M]
+        # Constrain the target temperature to desired range
+        ThTargetC = min(ThTarget, 36)
+        ThTargetC = max(ThTarget, 30)
+        # Anti Reset Windup
+        CommErrCum[M] -= (ThTarget - ThTargetC)
+        sysData[M]['Thermostat']['target'] = ThTargetC
         
-        if CommError > 0 :
-            addTerminal(M, "below target, setting temp to 26")
-            sysData[M]['Community']['decision'] = 1 #need to add this to the recording output csv
-            sysData[M]['Thermostat']['target'] = 26 #temp to be pro pseudomonas
+        # TODO: Add button to sitch between controllers
+        # if CommErr > 0 :
+        #     addTerminal(M, "below target, setting temp to 26")
+        #     sysData[M]['Community']['decision'] = 1 #need to add this to the recording output csv
+        #     sysData[M]['Thermostat']['target'] = 26 #temp to be pro pseudomonas
             
-        elif CommError == 0 : 
-            addTerminal(M, "No selective action taken")
-            sysData[M]['Community']['decision'] = 0 #need to add this to the recording output csv
+        # elif CommErr == 0 : 
+        #     addTerminal(M, "No selective action taken")
+        #     sysData[M]['Community']['decision'] = 0 #need to add this to the recording output csv
             
-        
-        elif CommError < 0: 
-            addTerminal(M, "Above target, setting temp target to 37")
-            sysData[M]['Community']['decision'] = 0 #need to add this to the recording output csv
-            sysData[M]['Thermostat']['target'] = 37 #temp for pro coli
+        # elif CommErr < 0: 
+        #     addTerminal(M, "Above target, setting temp target to 37")
+        #     sysData[M]['Community']['decision'] = 0 #need to add this to the recording output csv
+        #     sysData[M]['Thermostat']['target'] = 37 #temp for pro coli
     
     return
 
