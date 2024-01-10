@@ -1204,46 +1204,26 @@ def CustomProgram(M):
             SetOutputOn(M,'UV',0) #Deactivate UV
             
     elif (program=="C6"): #UV Dosing program 2 - constant value!
-        timept=int(sysData[M]['Custom']['Status']) #This is the timestep as we follow in minutes
-        sysData[M]['Custom']['Status']=timept+1 #Increment time as we have entered the loop another time!
-        
-        Pump2Ontime=sysData[M]['Experiment']['cycleTime']*1.05*abs(sysData[M]['Pump2']['target'])*sysData[M]['Pump2']['ON']+0.5 #The amount of time Pump2 is going to be on for following RegulateOD above.
-        time.sleep(Pump2Ontime) #Pause here is to prevent output pumping happening at the same time as stirring.
-    
-        timelength=300 #Time between doses in minutes
-        if(timept%timelength==2): #So this happens every 5 hours!
-            iters=(timept//timelength)
-            if iters>3:
-                iters=3
-                
-            Dose0=float(Params[0])
-            Dose=Dose0*(2.0**float(iters)) #UV Dose, in terms of amount of time UV shoudl be left on at 1.0 intensity.
-            print(str(datetime.now()) + ' Gave dose ' + str(Dose) + " at iteration " + str(iters) + " on device " + str(M))
-              
-            if (Dose<30.0):  
-                powerlvl=Dose/30.0
-                SetOutputTarget(M,'UV',powerlvl)
-                Dose=30.0
-            else:    
-                SetOutputTarget(M,'UV',1.0) #Ensure UV is on at aopropriate intensity
-            
-            SetOutputOn(M,'UV',1) #Activate UV
-            time.sleep(Dose) #Wait for dose to be administered
-            SetOutputOn(M,'UV',0) #Deactivate UV
+        now = datetime.now()
+        TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
+        CurrentTime = round(TimeDur.total_seconds()/3600,4)
+        if (CurrentTime < 12):
+            sysData[M]['Thermostat']['target'] = 30 + int(M[-1])
+        else:
+            sysData[M]['Thermostat']['target'] = 33 - int(M[-1])
         
     elif (program=="C7"): # use this code for Ec Pp community parameterization
         now = datetime.now()
         TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
         CurrentTime = round(TimeDur.total_seconds()/3600,4)
         if (CurrentTime < 12):
-            sysData[M]['Thermostat']['target'] = 30 + int(M[-1])
-            if M == 'M7':
+            sysData[M]['Thermostat']['target'] = 34 + int(M[-1])
+            if M == 'M3':
                 sysData[M]['Thermostat']['target'] = 33.5
         else:
             sysData[M]['Thermostat']['target'] = 36 - int(M[-1])
-            if M == 'M7':
+            if M == 'M3':
                 sysData[M]['Thermostat']['target'] = 34.5
-        
 
     elif (program == 'C8'): # use this program to control Ec Pp community using temperature ZERO TOLERANCE EDITION
         global est
