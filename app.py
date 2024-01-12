@@ -19,8 +19,8 @@ import copy
 import csv
 import smbus2 as smbus
 
-from estimator import EKF
-from model import CustModel
+from lib.Estimator import EKF
+from lib.Model import CustModel
 
 application = Flask(__name__)
 application.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0 #Try this https://stackoverflow.com/questions/23112316/using-flask-how-do-i-modify-the-cache-control-header-for-all-output/23115561#23115561
@@ -57,11 +57,12 @@ sysData = {'M0' : {
    'ThermometerInternal' : {'current' : 0.0,'record' : []},
    'ThermometerExternal' : {'current' : 0.0,'record' : []},
    'ThermometerIR' : {'current' : 0.0,'record' : []},
-   'OD' :  {'current' : 0.0,'target' : 0.5,'default' : 0.5,'max': 10, 'min' : 0,'record' : [],'targetrecord' : [],'Measuring' : 0, 'ON' : 0,'Integral' : 0.0,'Integral2' : 0.0,'device' : 'LASER650'},
-   'OD0' : {'target' : 0.0,'raw' : 0.0,'max' : 100000.0,'min': 0.0,'LASERb' : 1.833 ,'LASERa' : 0.226, 'LEDFa' : 0.673, 'LEDAa' : 7.0  },
+   'OD' :  {'current' : 0.0,'target' : 0.5,'default' : 0.5,'max': 10, 'min' : 0,'record' : [],'targetrecord' : [],'Measuring' : 0, 'Calibrating' : 0, 'ON' : 0,'Integral' : 0.0,'Integral2' : 0.0,'device' : 'LASER650'},
+   'OD0' : {'target' : 0.0, 'std' : 0.0, 'raw' : 0.0,'max' : 100000.0,'min': 0.0,'LASERb' : 1.833 ,'LASERa' : 0.226, 'LEDFa' : 0.673, 'LEDAa' : 7.0  },
    'Chemostat' : {'ON' : 0, 'p1' : 0.0, 'p2' : 0.1},
    'Zigzag': {'ON' : 0, 'Zig' : 0.04,'target' : 0.0,'SwitchPoint' : 0},
-   'Community': {'ON' : 0, 'error' : 0, 'decision': 0, 'estKF': 0, 'estRecord' : [], 'tarRecord' : []},
+   'Community': {'ON' : 0, 'estKF': 0, 'estRecord' : [], 'tarRecord' : []},
+   'PID' : {'ON' : 0, 'Kp' : 0.03, 'Ki' : 0.0015, 'Kd' : 0.0},
    'GrowthRate': {'current' : 0.0,'record' : [],'default' : 2.0},
    'Volume' : {'target' : 20.0,'max' : 50.0, 'min' : 0.0,'ON' : 0},
    'Pump1' :  {'target' : 0.0,'default' : 0.0,'max': 1.0, 'min' : -1.0, 'direction' : 1.0, 'ON' : 0,'record' : [], 'thread' : 0},
@@ -171,6 +172,7 @@ sysItems = {
 model = CustModel(n_reactors = 8)
 est = {'M{}'.format(j) : EKF(model, j) for j in range(8)}
 CommErrCum = {'M{}'.format(j) : 0 for j in range(8)}
+CommErrPrev = {'M{}'.format(j) : 0 for j in range(8)}
    
 
 
@@ -224,14 +226,14 @@ def initialise(M):
     sysData[M]['LASER650']['ON']=0
     
     FP='FP1'
-    sysData[M][FP]['ON']=0
-    sysData[M][FP]['LED']="LEDB"
+    sysData[M][FP]['ON']=1
+    sysData[M][FP]['LED']="LEDA"
     sysData[M][FP]['Base']=0
     sysData[M][FP]['Emit1']=0
     sysData[M][FP]['Emit2']=0
     sysData[M][FP]['BaseBand']="CLEAR"
-    sysData[M][FP]['Emit1Band']="nm510"
-    sysData[M][FP]['Emit2Band']="nm550"
+    sysData[M][FP]['Emit1Band']="nm440"
+    sysData[M][FP]['Emit2Band']="OFF"
     sysData[M][FP]['Gain']="x10"
     sysData[M][FP]['BaseRecord']=[]
     sysData[M][FP]['Emit1Record']=[]
@@ -301,6 +303,7 @@ def initialise(M):
     sysData[M]['OD']['target']=sysData[M]['OD']['default'];
     sysData[M]['OD0']['target']=65000.0
     sysData[M]['OD0']['raw']=65000.0
+    sysData[M]['OD0']['std']=0.0
     sysData[M]['OD']['device']='LASER650'
     #sysData[M]['OD']['device']='LEDA'
     
@@ -318,11 +321,12 @@ def initialise(M):
     sysData[M]['Experiment']['threadCount']=0
     sysData[M]['Experiment']['startTime']=' Waiting '
     sysData[M]['Experiment']['startTimeRaw']=0
-    sysData[M]['OD']['ON']=0
+    sysData[M]['OD']['ON']=1
     sysData[M]['OD']['Measuring']=0
+    sysData[M]['OD']['Calibrating']=0
     sysData[M]['OD']['Integral']=0.0
     sysData[M]['OD']['Integral2']=0.0
-    sysData[M]['Zigzag']['ON']=0
+    sysData[M]['Zigzag']['ON']=1
     sysData[M]['Zigzag']['target']=0.0
     sysData[M]['Zigzag']['SwitchPoint']=0
     sysData[M]['GrowthRate']['current']=sysData[M]['GrowthRate']['default']
@@ -356,8 +360,11 @@ def initialise(M):
     sysData[M]['Thermostat']['record']=[]
 	
     sysData[M]['GrowthRate']['record']=[]
+    sysData[M]['Community']['ON']=0
     sysData[M]['Community']['estRecord']=[]
     sysData[M]['Community']['tarRecord']=[]
+    sysData[M]['Community']['estKF']=0
+    sysData[M]['PID']['ON']=0
 
     sysDevices[M]['ThermometerInternal']['device']=I2C.get_i2c_device(0x18,2) #Get Thermometer on Bus 2!!!
     sysDevices[M]['ThermometerExternal']['device']=I2C.get_i2c_device(0x1b,2) #Get Thermometer on Bus 2!!!
@@ -672,6 +679,9 @@ def SetOutput(M,item):
     
     elif (item=='LEDA' or item=='LEDB' or item=='LEDC' or item=='LEDD' or item=='LEDE' or item=='LEDF' or item=='LEDG'):
         setPWM(M,'PWM',sysItems[item],sysData[M][item]['target']*float(sysData[M][item]['ON']),0)
+    
+    elif (item=='PID'):
+        pass
         
     else: #This is if we are setting the DAC. All should be in range [0,1]
         register = int(sysItems['DAC'][item],2)
@@ -1065,6 +1075,19 @@ def SetCustom(Program,Status):
         sysData[M][item]['param2']=0.0
         sysData[M][item]['param3']=0.0
     return('',204)
+
+
+@application.route("/SetPID/<Kp>/<Ki>/<Kd>",methods=['POST'])
+def SetPID(Kp,Ki,Kd):
+    #Turns a custom program on/off.
+	
+    global sysData
+    M=sysItems['UIDevice']
+    item="PID"
+    sysData[M][item]['Kp']=float(Kp)
+    sysData[M][item]['Ki']=float(Ki)
+    sysData[M][item]['Kd']=float(Kd)
+    return('',204)
 		
         
 def CustomProgram(M):
@@ -1082,7 +1105,6 @@ def CustomProgram(M):
         Params=listin[0]
     except:
         pass
-	
     sysData[M]['Community']['ON'] = 0
 	
     if (program=="C1"): #Optogenetic Integral Control Program
@@ -1178,56 +1200,43 @@ def CustomProgram(M):
         timept=timept+1
         sysData[M]['Custom']['Status']=timept
             
-    elif (program=="C5"): #UV Dosing program
-        timept=int(sysData[M]['Custom']['Status']) #This is the timestep as we follow in minutes
-        sysData[M]['Custom']['Status']=timept+1 #Increment time as we have entered the loop another time!
-        
-        Pump2Ontime=sysData[M]['Experiment']['cycleTime']*1.05*abs(sysData[M]['Pump2']['target'])*sysData[M]['Pump2']['ON']+0.5 #The amount of time Pump2 is going to be on for following RegulateOD above.
-        time.sleep(Pump2Ontime) #Pause here is to prevent output pumping happening at the same time as stirring.
-        
-        timelength=300 #Time between doses in minutes
-        if(timept%timelength==2): #So this happens every 5 hours!
-            iters=(timept//timelength)
-            Dose0=float(Params[0])
-            Dose=Dose0*(2.0**float(iters)) #UV Dose, in terms of amount of time UV shoudl be left on at 1.0 intensity.
-            print(str(datetime.now()) + ' Gave dose ' + str(Dose) + " at iteration " + str(iters) + " on device " + str(M))
+    elif (program=="C5"): # use this code for Ec Pp community parameterization
+        now = datetime.now()
+        TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
+        CurrentTime = round(TimeDur.total_seconds()/3600,4)
+        if (CurrentTime < 8):
+            sysData[M]['Thermostat']['target'] = 26
+        elif (CurrentTime < 16):
+            sysData[M]['Thermostat']['target'] = 30
+        else:
+            sysData[M]['Thermostat']['target'] = 34
             
-            if (Dose<30.0):  
-                powerlvl=Dose/30.0
-                SetOutputTarget(M,'UV',powerlvl)
-                Dose=30.0
-            else:    
-                SetOutputTarget(M,'UV',1.0) #Ensure UV is on at aopropriate intensity
-                
-            SetOutputOn(M,'UV',1) #Activate UV
-            time.sleep(Dose) #Wait for dose to be administered
-            SetOutputOn(M,'UV',0) #Deactivate UV
-            
-    elif (program=="C6"): #UV Dosing program 2 - constant value!
+    elif (program=="C6"): # use this code for Ec Pp community parameterization
         now = datetime.now()
         TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
         CurrentTime = round(TimeDur.total_seconds()/3600,4)
         if (CurrentTime < 12):
             sysData[M]['Thermostat']['target'] = 30 + int(M[-1])
         else:
-            sysData[M]['Thermostat']['target'] = 33 - int(M[-1])
+            sysData[M]['Thermostat']['target'] = 36 - int(M[-1])
         
     elif (program=="C7"): # use this code for Ec Pp community parameterization
         now = datetime.now()
         TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
         CurrentTime = round(TimeDur.total_seconds()/3600,4)
         if (CurrentTime < 12):
-            sysData[M]['Thermostat']['target'] = 34 + int(M[-1])
+            sysData[M]['Thermostat']['target'] = 30 + 4 + int(M[-1])
             if M == 'M3':
                 sysData[M]['Thermostat']['target'] = 33.5
         else:
-            sysData[M]['Thermostat']['target'] = 36 - int(M[-1])
+            sysData[M]['Thermostat']['target'] = 36 - 4 - int(M[-1])
             if M == 'M3':
                 sysData[M]['Thermostat']['target'] = 34.5
 
     elif (program == 'C8'): # use this program to control Ec Pp community using temperature ZERO TOLERANCE EDITION
         global est
         global CommErrCum
+        global CommErrPrev
         addTerminal(M, "Community Control activated - temp control")
         sysData[M]['Community']['ON'] = 1
         CommTarget = sysData[M]['Custom']['Status'] # takes target value from the custom input box
@@ -1236,42 +1245,38 @@ def CustomProgram(M):
         CurrentTime = round(TimeDur.total_seconds(),2)
         CurrentTemp = sysData[M]['ThermometerIR']['current']
         CurrentOD = sysData[M]['OD']['current']
-        CurrentFl = sysData[M]['FP1']['Emit1'] # this signal MUST be tracked from FP1 emit1
-        z = np.array([CurrentFl, CurrentOD])
+        CurrentFl = sysData[M]['FP1']['Emit1']*sysData[M]['FP1']['Base'] # this signal MUST be tracked from FP1 emit1
+        z = np.array([CurrentOD, CurrentFl])
         est[M].estimate(CurrentTime, CurrentTemp, z)
         CommEst = round(est[M].est['p']/(est[M].est['p']+est[M].est['e'])*100,2)
         CommErr = CommTarget - CommEst #this should be negative if above target, positive if below
         sysData[M]['Community']['estKF'] = CommEst #this stores this value for easy plotting after the experiment
 
-        CritTemp = 33.5 # around this temperature both bacteria should be growing at the same rate
-        # use PI controller instead
-        k_p = 3/100
-        k_i = 3/100/20
-        CommErrCum[M] += CommErr * k_i
-        ThTarget = CritTemp + CommErr * k_p + CommErrCum[M]
-        # Constrain the target temperature to desired range
-        ThTargetC = min(ThTarget, 36)
-        ThTargetC = max(ThTarget, 30)
-        # Anti Reset Windup
-        CommErrCum[M] -= (ThTarget - ThTargetC)
-        sysData[M]['Thermostat']['target'] = ThTargetC
-        
-        # TODO: Add button to sitch between controllers
-        # if CommErr > 0 :
-        #     addTerminal(M, "below target, setting temp to 26")
-        #     sysData[M]['Community']['decision'] = 1 #need to add this to the recording output csv
-        #     sysData[M]['Thermostat']['target'] = 26 #temp to be pro pseudomonas
-            
-        # elif CommErr == 0 : 
-        #     addTerminal(M, "No selective action taken")
-        #     sysData[M]['Community']['decision'] = 0 #need to add this to the recording output csv
-            
-        # elif CommErr < 0: 
-        #     addTerminal(M, "Above target, setting temp target to 37")
-        #     sysData[M]['Community']['decision'] = 0 #need to add this to the recording output csv
-        #     sysData[M]['Thermostat']['target'] = 37 #temp for pro coli
+        if sysData[M]['PID']['ON']:
+            CritTemp = 33.5 # around this temperature both bacteria should be growing at the same rate
+            CommErrCum[M] += CommErr * sysData[M]['PID']['Ki']
+            CommErrDiff = (CommErr - CommErrPrev[M]) * sysData[M]['PID']['Kd']
+            ThTarget = CritTemp - CommErr * sysData[M]['PID']['Kp'] - CommErrCum[M] - CommErrDiff
+            # Constrain the target temperature to desired range
+            ThTargetC = min(ThTarget, 36)
+            ThTargetC = max(ThTarget, 30)
+            # Anti Reset Windup
+            CommErrCum[M] -= (ThTarget - ThTargetC)
+            sysData[M]['Thermostat']['target'] = ThTargetC
+        else:
+            if CommErr > 0 :
+                addTerminal(M, "below target, setting temp to 26")
+                sysData[M]['Thermostat']['target'] = 26 #temp to be pro pseudomonas
+                
+            elif CommErr == 0 : 
+                addTerminal(M, "No selective action taken")
+                
+            elif CommErr < 0: 
+                addTerminal(M, "Above target, setting temp target to 37")
+                sysData[M]['Thermostat']['target'] = 37 #temp for pro coli
     
     return
+
 
 def CustomLEDCycle(M,LED,Value):
     #This function cycles LEDs for a fraction of 30 seconds during an experiment.
@@ -1511,18 +1516,36 @@ def I2CCom(M,device,rw,hl,data1,data2,SMBUSFLAG):
     
     
 
-@application.route("/CalibrateOD/<item>/<M>/<value>/<value2>",methods=['POST'])
-def CalibrateOD(M,item,value,value2):
+@application.route("/CalibrateOD/<M>/<value>",methods=['POST'])
+def CalibrateOD(M,value):
     #Used to calculate calibration value for OD measurements.
     global sysData
-    item = str(item)
-    ODRaw = float(value)
-    ODActual = float(value2)
+    ODActual = float(value)
     M=str(M)
     if (M=="0"):
         M=sysItems['UIDevice']
         
+
+    sysData[M]['OD']['Calibrating'] = 1
+    calThread=Thread(target = CalibrateCallback, args=(M, ODActual), daemon=True)
+    calThread.start()
+
+    return ('', 204) 
+
+def CalibrateCallback(M,ODActual):
     device=sysData[M]['OD']['device']
+    # Stir, Measure
+    SetOutputOn(M,'Stir',1)
+    time.sleep(1.0)
+    SetOutputOn(M,'Stir',0)
+    time.sleep(5.0)
+    ODRawArr = np.zeros(5)
+    for i in range(5):
+        MeasureOD(M)
+        ODRawArr[i] = sysData[M]['OD0']['raw']
+    ODRaw = np.mean(ODRawArr)
+    sysData[M]['OD0']['std'] = np.std(ODRawArr)
+
     if (device=='LASER650'):
         a=sysData[M]['OD0']['LASERa']#Retrieve the calibration factors for OD.
         b=sysData[M]['OD0']['LASERb'] 
@@ -1532,17 +1555,17 @@ def CalibrateOD(M,item,value,value2):
         
         raw=((ODActual/a +  (b/(2*a))**2)**0.5) - (b/(2*a)) #THis is performing the inverse function of the quadratic OD calibration.
         OD0=(10.0**raw)*ODRaw
-        if (OD0<sysData[M][item]['min']):
-            OD0=sysData[M][item]['min']
+        if (OD0<sysData[M]['OD0']['min']):
+            OD0=sysData[M]['OD0']['min']
             print(str(datetime.now()) + 'OD calibration value seems too low?!')
 
-        if (OD0>sysData[M][item]['max']):
-            OD0=sysData[M][item]['max']
+        if (OD0>sysData[M]['OD0']['max']):
+            OD0=sysData[M]['OD0']['max']
             print(str(datetime.now()) + 'OD calibration value seems too high?!')
 
     
-        sysData[M][item]['target']=OD0
-        print(str(datetime.now()) + "Calibrated OD")
+        sysData[M]['OD0']['target']=OD0
+        print(str(datetime.now()) + " Calibrated OD")
     elif (device=='LEDF'):
         a=sysData[M]['OD0']['LEDFa']#Retrieve the calibration factors for OD.
         
@@ -1563,14 +1586,14 @@ def CalibrateOD(M,item,value,value2):
         OD0=ODRaw/ODActual
         print(OD0)
     
-        if (OD0<sysData[M][item]['min']):
-            OD0=sysData[M][item]['min']
+        if (OD0<sysData[M]['OD0']['min']):
+            OD0=sysData[M]['OD0']['min']
             print('OD calibration value seems too low?!')
-        if (OD0>sysData[M][item]['max']):
-            OD0=sysData[M][item]['max']
+        if (OD0>sysData[M]['OD0']['max']):
+            OD0=sysData[M]['OD0']['max']
             print('OD calibration value seems too high?!')
     
-        sysData[M][item]['target']=OD0
+        sysData[M]['OD0']['target']=OD0
         print("Calibrated OD")
     elif (device=='LEDA'):
         a=sysData[M]['OD0']['LEDAa']#Retrieve the calibration factors for OD.
@@ -1592,17 +1615,19 @@ def CalibrateOD(M,item,value,value2):
         OD0=ODRaw/ODActual
         print(OD0)
     
-        if (OD0<sysData[M][item]['min']):
-            OD0=sysData[M][item]['min']
+        if (OD0<sysData[M]['OD0']['min']):
+            OD0=sysData[M]['OD0']['min']
             print('OD calibration value seems too low?!')
-        if (OD0>sysData[M][item]['max']):
-            OD0=sysData[M][item]['max']
+        if (OD0>sysData[M]['OD0']['max']):
+            OD0=sysData[M]['OD0']['max']
             print('OD calibration value seems too high?!')
     
-        sysData[M][item]['target']=OD0
+        sysData[M]['OD0']['target']=OD0
         print("Calibrated OD")
         
-    return ('', 204)    
+    sysData[M]['OD']['Calibrating'] = 0
+
+    return  
     
     
         
@@ -1786,7 +1811,8 @@ def csvData(M):
     fieldnames = ['exp_time','od_measured','od_setpoint','od_zero_setpoint','thermostat_setpoint','heating_rate',
                   'internal_air_temp','external_air_temp','media_temp','opt_gen_act_int','pump_1_rate','pump_2_rate',
                   'pump_3_rate','pump_4_rate','media_vol','stirring_rate',
-                  'comm_on','comm_decision','comm_est',
+                  'comm_est',
+                  'pid_kp','pid_ki','pid_kd',
                   'LED_395nm_setpoint','LED_457nm_setpoint','LED_500nm_setpoint','LED_523nm_setpoint','LED_595nm_setpoint','LED_623nm_setpoint',
                   'LED_6500K_setpoint','laser_setpoint','LED_UV_int','FP1_base','FP1_emit1','FP1_emit2','FP2_base',
                   'FP2_emit1','FP2_emit2','FP3_base','FP3_emit1','FP3_emit2','custom_prog_param1','custom_prog_param2',
@@ -1808,9 +1834,10 @@ def csvData(M):
         sysData[M]['Pump4']['record'][-1],
         sysData[M]['Volume']['target'],
         sysData[M]['Stir']['target']*sysData[M]['Stir']['ON'],
-        sysData[M]['Community']['ON'],
-        sysData[M]['Community']['decision'],
-        sysData[M]['Community']['estKF']]
+        sysData[M]['Community']['estKF']*sysData[M]['Community']['ON'],
+        sysData[M]['PID']['Kp']*sysData[M]['PID']['ON'],
+        sysData[M]['PID']['Ki']*sysData[M]['PID']['ON'],
+        sysData[M]['PID']['Kd']*sysData[M]['PID']['ON']]
     for LED in ['LEDA','LEDB','LEDC','LEDD','LEDE','LEDF','LEDG','LASER650']:
         row=row+[sysData[M][LED]['target']]
     row=row+[sysData[M]['UV']['target']*sysData[M]['UV']['ON']]

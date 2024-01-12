@@ -128,92 +128,90 @@
         <br>
       </div>
       <button id="ODRegulate">Switch</button> <button id="Zigzag">Dither OD</button>
+     
+    <div id="ODContainer"  class="container">
+        <div class="row">
+            <div class="col-3 align-self-center">
+                <button id="ODMeasure">Measure</button>
+           
+            </div>
+            <div class="col-3 align-self-center">
+                Raw: <br>
+                <div id="ODRaw">0</div>
+          
+            </div>
+            <div class="col-3 align-self-center">
+                OD: <br>
+                <div id="ODCurrent">0</div>
+            
+            </div>
+            <div class="col-2 align-self-center">
+            
+            </div>
+        </div>
+    </div>
+    <div id="ODContainer"  class="container">
+        <div class="row">
+            <div class="col-4 align-self-center">
+                <b><font color="000000"> OD Target: </font></b> <br>
+                <div id="ODTarget">0</div>
+            
+            </div>
+            <div class="col-2 align-self-center">
+            
+            </div>
+            <div class="col-4 align-self-center">
+                New: <br>
+                <input id="ODInput" type="number" size="8" value=0 style="width: 6em"/>
+      
+            </div>
+            <div class="col-2 align-self-end">
+                <button id="ODSet">Set</button> 
+        
+            </div>
+      
+        </div>
+    </div>     
+    <div id="OD0Container"  class="container">
+        <div class="row">
+            <div class="col-4 align-self-center">
+                <b><font color="000000"> OD Zero: </font></b> <br> 
+                <div id="OD0Current">0</div>
+            
+            </div>
+            <div class="col-2 align-self-center">
+                Std: <br>
+                <div id="OD0Std">0</div>
+            </div>
+            <div class="col-4 align-self-center">
+                Actual OD: <br>
+                <input id="OD0Actual" type="number" size="8" value=0 style="width: 6em"/>
+            
+            </div>
+           
+            <div class="col-2 align-self-end">
+                <button id="OD0Cal">Cal</button> 
 
-    
-       <div id="ODContainer"  class="container">
-        <div class="row">
-            <div class="col-3 align-self-center">
-             <b><font color="000000"> OD: </font></b> <br>
-             <button id="ODMeasure">Measure</button>
-           
-          </div>
-          <div class="col-2 align-self-center">
-              Current: <br>
-              <div id="ODCurrent">0</div>
-            
-          </div>
-           <div class="col-2 align-self-center">
-              Target: <br>
-              <div id="ODTarget">0</div>
-            
-          </div>
-         
-          <div class="col-3 align-self-center">
-              New: <br>
-              <input id="ODInput" type="number" size="8" value=0 style="width: 6em"/>
+            </div>
       
-          </div>
-          <div class="col-2 align-self-end">
-              <button id="ODSet">Set</button> 
-        
-          </div>
-      
-      </div>
-      </div>
-      
-      
-      <div id="OD0Container"  class="container">
-        <div class="row">
-            <div class="col-3 align-self-center">
-             <b><font color="000000"> OD Zero: </font></b> <br> 
-             Raw: <div id="ODRaw" style="display: inline">0</div>
-             
-           
-          </div>
-          <div class="col-2 align-self-center">
-              Current: <br>
-              <div id="OD0Current">0</div>
-            
-          </div>
-          <div class="col-2 align-self-center">
-            Actual: <br>
-             <input id="OD0Actual" type="number" size="8" value=0 style="width: 4em"/>
-            
-          </div>
-           
-         
-          <div class="col-3 align-self-center">
-              Measured:<br>
-              <input id="OD0Input" type="number" size="8" value=0 style="width: 6em"/>
-      
-          </div>
-          <div class="col-2 align-self-end">
-              <button id="OD0Set">Set</button> 
-        
-          </div>
-      
-      </div>
-      </div>
+        </div>
+    </div>
       
       <div id="VolumeContainer"  class="container">
         <div class="row">
-            <div class="col-3 align-self-center">
+            <div class="col-4 align-self-center">
              <b><font color="000000"> Volume (ml): </font></b> <br>
+             <div id="VolumeCurrent">0</div>
              
            
-          </div>
-          <div class="col-2 align-self-center">
-              Current: <br>
-              <div id="VolumeCurrent">0</div>
-            
-          </div>
+            </div>
           <div class="col-2 align-self-center">
            
             
           </div>
            
          
-          <div class="col-3 align-self-center">
+          <div class="col-4 align-self-center">
               New: <br>
               <input id="VolumeInput" type="number" size="8" value=0 style="width: 6em"/>
       
@@ -901,7 +899,7 @@
                        <option value="C2">C2</option>
                        <option value="C3">C3</option>
                        <option value="C4">C4</option>
-                       <option value="C5">C5</option>
+                       <option value="C5">C6</option>
                        <option value="C6">C7/C9</option>
                        <option value="C7">C8/C6</option>
                        <option value="C8">C8</option>
@@ -1339,7 +1337,34 @@
         </div>
 
         <div class="col-4">
-            <div align='center'><h3>Putida Estimation</h3> </div>  
+            <div align='center'><h3>Putida Estimation</h3></div>
+            <br>
+            <div id="PIDContainer"  class="container">
+            <div class="row">
+                <div class="col-2 align-self-center">
+                    <button id="PIDSwitch" >PID</button>
+                </div>
+                <div class="col-3 align-self-center">
+                    Kp:<br>
+                    <input id="PID_Kp" type="number" size="8" value=0 style="width: 6em"/><br>
+                    <div id="KpCurrent">0</div>
+                </div>
+                <div class="col-3 align-self-center">
+                    Ki:<br>
+                    <input id="PID_Ki" type="number" size="8" value=0 style="width: 6em"/><br>
+                    <div id="KiCurrent">0</div>
+                </div>
+                <div class="col-3 align-self-center">
+                    Kd:<br>
+                    <input id="PID_Kd" type="number" size="8" value=0 style="width: 6em"/><br>
+                    <div id="KdCurrent">0</div>
+                </div>
+                <div class="col-1 align-self-center">
+                    <button id="PIDSet">Set</button>
+                </div>
+            </div>
+            </div>
+
             <div id="chart_div8"></div>
         </div>
     </div>
@@ -1864,10 +1889,9 @@ function TitleFailure() {
     
       <script>
         $(function() {
-            $('#OD0Set').click(function(){
-              var value = $('#OD0Input').val();
-              var value2 = $('#OD0Actual').val();
-              var targetURL = '/CalibrateOD/OD0/0/' + value + '/' + value2;
+            $('#OD0Cal').click(function(){
+              var value = $('#OD0Actual').val();
+              var targetURL = '/CalibrateOD/0/' + value;
                $.ajax({
                    type:'POST',
                    url: targetURL,
@@ -2295,6 +2319,40 @@ function TitleFailure() {
                  }
              }); 
              })
+        });
+    </script>
+
+    <script>
+        $(function() {
+            $('#PIDSwitch').click(function(){
+            
+            var targetURL = '/SetOutputOn/PID/2/0';
+            $.ajax({
+                type:'POST',
+                url: targetURL,
+                success:function(response){ 
+                getSysData();
+                }
+            }); 
+            })
+        });
+    </script>
+
+    <script>
+        $(function() {
+            $('#PIDSet').click(function(){
+            var v1 = $('#PID_Kp').val();
+            var v2 = $('#PID_Ki').val();
+            var v3 = $('#PID_Kd').val();
+            var targetURL = '/SetPID/' + v1 + '/' + v2 + '/' + v3;
+            $.ajax({
+                type:'POST',
+                url: targetURL,
+                success:function(response){ 
+                getSysData();
+                }
+            }); 
+            })
         });
     </script>
     

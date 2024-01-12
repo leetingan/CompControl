@@ -104,11 +104,16 @@ function updateData(data){
         document.getElementById("ODCurrent").innerHTML = data.OD.current.toFixed(3);
         
         document.getElementById("OD0Current").innerHTML = data.OD0.target.toFixed(0);
+        document.getElementById("OD0Std").innerHTML = data.OD0.std.toFixed(0);
         document.getElementById("ODRaw").innerHTML = data.OD0.raw.toFixed(0);
         
         document.getElementById("VolumeCurrent").innerHTML = data.Volume.target.toFixed(3);
         
         document.getElementById("ODTarget").innerHTML = data.OD.target.toFixed(3);
+
+        document.getElementById("KpCurrent").innerHTML = data.PID.Kp.toFixed(4);
+        document.getElementById("KiCurrent").innerHTML = data.PID.Ki.toFixed(4);
+        document.getElementById("KdCurrent").innerHTML = data.PID.Kd.toFixed(4);
         
            
         // Do Experiment-dependent things
@@ -147,6 +152,9 @@ function updateData(data){
         document.getElementById("TempMeasure2").disabled = (measuring );
         document.getElementById("TempMeasure3").disabled = (measuring );
         document.getElementById("ODMeasure").disabled = (measuring );
+        document.getElementById("OD0Cal").disabled = (measuring );
+
+        document.getElementById("OD0Cal").disabled = Boolean(data.OD.Calibrating);
         
         
         
@@ -338,6 +346,13 @@ function updateData(data){
         } else {
              document.getElementById("CustomSwitch").setAttribute("style", "")
         }
+
+        if (data.PID.ON==1){
+          document.getElementById("PIDSwitch").setAttribute("style", "border-style:inset;background-color:lightblue")
+          
+        } else {
+          document.getElementById("PIDSwitch").setAttribute("style", "")
+        }
         
         
         if (data.presentDevices.M0 ==0) {
@@ -462,7 +477,6 @@ function updateData(data){
         } else {
              document.getElementById("ODRegulate").setAttribute("style", "")
         }
-        document.getElementById("ODRegulate").disabled = !Boolean(data.Experiment.ON)
         
         
          if (data.Zigzag.ON==1){
@@ -470,7 +484,6 @@ function updateData(data){
         } else {
              document.getElementById("Zigzag").setAttribute("style", "")
         }
-        document.getElementById("Zigzag").disabled = !TurbidostatOn
              
                
        // Following if statement is for things that should be done only when changing betwix devices.
@@ -542,9 +555,9 @@ function updateData(data){
 		    if (data.Zigzag.ON==1){
 		  drawChart2(1,7,data.time.record.toString(),data.GrowthRate.record.toString(),"" ,"","","","",'Time (h)','Growth Rate','Growth Rate,')
 		  }
-          
-          drawChart2(2,8,data.time.record.toString(),data.Community.tarRecord.toString(),data.Community.estRecord.toString(),"","","","",'Time (h)','Putida Percentage','Target, Estimate')
-		  
+          if (data.Community.ON==1){
+               drawChart2(2,8,data.time.record.toString(),data.Community.tarRecord.toString(),data.Community.estRecord.toString(),"","","","",'Time (h)','Putida Percentage','Target, Estimate')
+          }
 
         }
         
