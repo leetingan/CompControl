@@ -104,6 +104,7 @@ function updateData(data){
         document.getElementById("ODCurrent").innerHTML = data.OD.current.toFixed(3);
         
         document.getElementById("OD0Current").innerHTML = data.OD0.target.toFixed(0);
+        document.getElementById("OD0Std").innerHTML = data.OD0.std.toFixed(0);
         document.getElementById("ODRaw").innerHTML = data.OD0.raw.toFixed(0);
         
         document.getElementById("VolumeCurrent").innerHTML = data.Volume.target.toFixed(3);
@@ -147,6 +148,11 @@ function updateData(data){
         document.getElementById("TempMeasure2").disabled = (measuring );
         document.getElementById("TempMeasure3").disabled = (measuring );
         document.getElementById("ODMeasure").disabled = (measuring );
+        document.getElementById("OD0Cal").disabled = (measuring );
+
+        document.getElementById("OD0Cal").disabled = Boolean(data.OD.Calibrating);
+        document.getElementById("ODMeasure").disabled = Boolean(data.OD.Calibrating);
+
         
         
         

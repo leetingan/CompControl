@@ -128,92 +128,89 @@
         <br>
       </div>
       <button id="ODRegulate">Switch</button> <button id="Zigzag">Dither OD</button>
+     
+    <div id="ODContainer"  class="container">
+        <div class="row">
+            <div class="col-4 align-self-center">
+                <button id="ODMeasure">Measure</button>
+           
+            </div>
+            <div class="col-3 align-self-center">
+                Raw: <br>
+                <div id="ODRaw">0</div>
+          
+            </div>
+            <div class="col-3 align-self-center">
+                OD: <br>
+                <div id="ODCurrent">0</div>
+            
+            </div>
+        </div>
+    </div>
+    <div id="ODContainer"  class="container">
+        <div class="row">
+            <div class="col-4 align-self-center">
+                <b><font color="000000"> OD Target: </font></b> <br>
+                <div id="ODTarget">0</div>
+            
+            </div>
+            <div class="col-2 align-self-center">
+            
+            </div>
+            <div class="col-4 align-self-center">
+                New: <br>
+                <input id="ODInput" type="number" size="8" value=0 style="width: 6em"/>
+      
+            </div>
+            <div class="col-2 align-self-end">
+                <button id="ODSet">Set</button> 
+        
+            </div>
+      
+        </div>
+    </div>     
+    <div id="OD0Container"  class="container">
+        <div class="row">
+            <div class="col-3 align-self-center">
+                <b><font color="000000"> OD Zero: </font></b> <br> 
+                <div id="OD0Current">0</div>
+            
+            </div>
+            <div class="col-2 align-self-center">
+                Std: <br>
+                <div id="OD0Std">0</div>
+            </div>
+            <div class="col-1 align-self-center">
+            
+            </div>
+            <div class="col-4 align-self-center">
+                Actual OD: <br>
+                <input id="OD0Actual" type="number" size="8" value=0 style="width: 6em"/>
+            
+            </div>
+            <div class="col-2 align-self-end">
+                <button id="OD0Cal">Cal</button> 
 
-    
-       <div id="ODContainer"  class="container">
-        <div class="row">
-            <div class="col-3 align-self-center">
-             <b><font color="000000"> OD: </font></b> <br>
-             <button id="ODMeasure">Measure</button>
-           
-          </div>
-          <div class="col-2 align-self-center">
-              Current: <br>
-              <div id="ODCurrent">0</div>
-            
-          </div>
-           <div class="col-2 align-self-center">
-              Target: <br>
-              <div id="ODTarget">0</div>
-            
-          </div>
-         
-          <div class="col-3 align-self-center">
-              New: <br>
-              <input id="ODInput" type="number" size="8" value=0 style="width: 6em"/>
+            </div>
       
-          </div>
-          <div class="col-2 align-self-end">
-              <button id="ODSet">Set</button> 
-        
-          </div>
-      
-      </div>
-      </div>
-      
-      
-      <div id="OD0Container"  class="container">
-        <div class="row">
-            <div class="col-3 align-self-center">
-             <b><font color="000000"> OD Zero: </font></b> <br> 
-             Raw: <div id="ODRaw" style="display: inline">0</div>
-             
-           
-          </div>
-          <div class="col-2 align-self-center">
-              Current: <br>
-              <div id="OD0Current">0</div>
-            
-          </div>
-          <div class="col-2 align-self-center">
-            Actual: <br>
-             <input id="OD0Actual" type="number" size="8" value=0 style="width: 4em"/>
-            
-          </div>
-           
-         
-          <div class="col-3 align-self-center">
-              Measured:<br>
-              <input id="OD0Input" type="number" size="8" value=0 style="width: 6em"/>
-      
-          </div>
-          <div class="col-2 align-self-end">
-              <button id="OD0Set">Set</button> 
-        
-          </div>
-      
-      </div>
-      </div>
+        </div>
+    </div>
       
       <div id="VolumeContainer"  class="container">
         <div class="row">
-            <div class="col-3 align-self-center">
+            <div class="col-4 align-self-center">
              <b><font color="000000"> Volume (ml): </font></b> <br>
+             <div id="VolumeCurrent">0</div>
              
            
-          </div>
-          <div class="col-2 align-self-center">
-              Current: <br>
-              <div id="VolumeCurrent">0</div>
-            
-          </div>
+            </div>
           <div class="col-2 align-self-center">
            
             
           </div>
            
          
-          <div class="col-3 align-self-center">
+          <div class="col-4 align-self-center">
               New: <br>
               <input id="VolumeInput" type="number" size="8" value=0 style="width: 6em"/>
       
@@ -1862,10 +1859,9 @@ function TitleFailure() {
     
       <script>
         $(function() {
-            $('#OD0Set').click(function(){
-              var value = $('#OD0Input').val();
-              var value2 = $('#OD0Actual').val();
-              var targetURL = '/CalibrateOD/OD0/0/' + value + '/' + value2;
+            $('#OD0Cal').click(function(){
+              var value = $('#OD0Actual').val();
+              var targetURL = '/CalibrateOD/0/' + value;
                $.ajax({
                    type:'POST',
                    url: targetURL,

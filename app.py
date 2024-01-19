@@ -55,8 +55,8 @@ sysData = {'M0' : {
    'ThermometerInternal' : {'current' : 0.0,'record' : []},
    'ThermometerExternal' : {'current' : 0.0,'record' : []},
    'ThermometerIR' : {'current' : 0.0,'record' : []},
-   'OD' :  {'current' : 0.0,'target' : 0.5,'default' : 0.5,'max': 10, 'min' : 0,'record' : [],'targetrecord' : [],'Measuring' : 0, 'ON' : 0,'Integral' : 0.0,'Integral2' : 0.0,'device' : 'LASER650'},
-   'OD0' : {'target' : 0.0,'raw' : 0.0,'max' : 100000.0,'min': 0.0,'LASERb' : 1.833 ,'LASERa' : 0.226, 'LEDFa' : 0.673, 'LEDAa' : 7.0  },
+   'OD' :  {'current' : 0.0,'target' : 0.5,'default' : 0.5,'max': 10, 'min' : 0,'record' : [],'targetrecord' : [],'Measuring' : 0, 'Calibrating' : 0, 'ON' : 0,'Integral' : 0.0,'Integral2' : 0.0,'device' : 'LASER650'},
+   'OD0' : {'target' : 0.0, 'std' : 0.0, 'raw' : 0.0,'max' : 100000.0,'min': 0.0,'LASERb' : 1.833 ,'LASERa' : 0.226, 'LEDFa' : 0.673, 'LEDAa' : 7.0  },
    'Chemostat' : {'ON' : 0, 'p1' : 0.0, 'p2' : 0.1},
    'Zigzag': {'ON' : 0, 'Zig' : 0.04,'target' : 0.0,'SwitchPoint' : 0},
    'GrowthRate': {'current' : 0.0,'record' : [],'default' : 2.0},
@@ -292,8 +292,9 @@ def initialise(M):
     
     sysData[M]['OD']['current']=0.0
     sysData[M]['OD']['target']=sysData[M]['OD']['default'];
-    sysData[M]['OD0']['target']=65000.0
+    # sysData[M]['OD0']['target']=65000.0
     sysData[M]['OD0']['raw']=65000.0
+    # sysData[M]['OD0']['std']=0.0
     sysData[M]['OD']['device']='LASER650'
     #sysData[M]['OD']['device']='LEDA'
     
@@ -1248,7 +1249,7 @@ def SetLightActuation(Excite):
     item="Light"
     if sysData[M][item]['ON']==1:
         sysData[M][item]['ON']=0
-	SetOutputOn(M,sysData[M][item]['Excite'],0) #In case the current LED is on we need to make sure it turns off
+        SetOutputOn(M,sysData[M][item]['Excite'],0) #In case the current LED is on we need to make sure it turns off
         return ('', 204)
     else:
         sysData[M][item]['Excite']=str(Excite)
@@ -1462,18 +1463,37 @@ def I2CCom(M,device,rw,hl,data1,data2,SMBUSFLAG):
     
     
 
-@application.route("/CalibrateOD/<item>/<M>/<value>/<value2>",methods=['POST'])
-def CalibrateOD(M,item,value,value2):
+@application.route("/CalibrateOD/<M>/<value>",methods=['POST'])
+def CalibrateOD(M,value):
     #Used to calculate calibration value for OD measurements.
     global sysData
-    item = str(item)
-    ODRaw = float(value)
-    ODActual = float(value2)
+    ODActual = float(value)
     M=str(M)
     if (M=="0"):
         M=sysItems['UIDevice']
+
+    sysData[M]['OD']['Calibrating'] = 1
+    calThread=Thread(target = CalibrateCallback, args=(M, ODActual), daemon=True)
+    calThread.start()
+
+    return ('', 204) 
+
+def CalibrateCallback(M,ODActual):
         
     device=sysData[M]['OD']['device']
+
+    # Stir, Measure
+    SetOutputOn(M,'Stir',1)
+    time.sleep(1.0)
+    SetOutputOn(M,'Stir',0)
+    time.sleep(5.0)
+    ODRawArr = np.zeros(5)
+    for i in range(5):
+        MeasureOD(M)
+        ODRawArr[i] = sysData[M]['OD0']['raw']
+    ODRaw = np.mean(ODRawArr)
+    sysData[M]['OD0']['std'] = np.std(ODRawArr)
+
     if (device=='LASER650'):
         a=sysData[M]['OD0']['LASERa']#Retrieve the calibration factors for OD.
         b=sysData[M]['OD0']['LASERb'] 
@@ -1483,17 +1503,17 @@ def CalibrateOD(M,item,value,value2):
         
         raw=((ODActual/a +  (b/(2*a))**2)**0.5) - (b/(2*a)) #THis is performing the inverse function of the quadratic OD calibration.
         OD0=(10.0**raw)*ODRaw
-        if (OD0<sysData[M][item]['min']):
-            OD0=sysData[M][item]['min']
+        if (OD0<sysData[M]['OD0']['min']):
+            OD0=sysData[M]['OD0']['min']
             print(str(datetime.now()) + 'OD calibration value seems too low?!')
 
-        if (OD0>sysData[M][item]['max']):
-            OD0=sysData[M][item]['max']
+        if (OD0>sysData[M]['OD0']['max']):
+            OD0=sysData[M]['OD0']['max']
             print(str(datetime.now()) + 'OD calibration value seems too high?!')
 
     
-        sysData[M][item]['target']=OD0
-        print(str(datetime.now()) + "Calibrated OD")
+        sysData[M]['OD0']['target']=OD0
+        print(str(datetime.now()) + " Calibrated OD")
     elif (device=='LEDF'):
         a=sysData[M]['OD0']['LEDFa']#Retrieve the calibration factors for OD.
         
@@ -1514,14 +1534,14 @@ def CalibrateOD(M,item,value,value2):
         OD0=ODRaw/ODActual
         print(OD0)
     
-        if (OD0<sysData[M][item]['min']):
-            OD0=sysData[M][item]['min']
+        if (OD0<sysData[M]['OD0']['min']):
+            OD0=sysData[M]['OD0']['min']
             print('OD calibration value seems too low?!')
-        if (OD0>sysData[M][item]['max']):
-            OD0=sysData[M][item]['max']
+        if (OD0>sysData[M]['OD0']['max']):
+            OD0=sysData[M]['OD0']['max']
             print('OD calibration value seems too high?!')
     
-        sysData[M][item]['target']=OD0
+        sysData[M]['OD0']['target']=OD0
         print("Calibrated OD")
     elif (device=='LEDA'):
         a=sysData[M]['OD0']['LEDAa']#Retrieve the calibration factors for OD.
@@ -1543,17 +1563,19 @@ def CalibrateOD(M,item,value,value2):
         OD0=ODRaw/ODActual
         print(OD0)
     
-        if (OD0<sysData[M][item]['min']):
-            OD0=sysData[M][item]['min']
+        if (OD0<sysData[M]['OD0']['min']):
+            OD0=sysData[M]['OD0']['min']
             print('OD calibration value seems too low?!')
-        if (OD0>sysData[M][item]['max']):
-            OD0=sysData[M][item]['max']
+        if (OD0>sysData[M]['OD0']['max']):
+            OD0=sysData[M]['OD0']['max']
             print('OD calibration value seems too high?!')
     
-        sysData[M][item]['target']=OD0
+        sysData[M]['OD0']['target']=OD0
         print("Calibrated OD")
         
-    return ('', 204)    
+    sysData[M]['OD']['Calibrating'] = 0
+        
+    return  
     
     
         
