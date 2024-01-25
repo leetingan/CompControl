@@ -131,7 +131,7 @@
      
     <div id="ODContainer"  class="container">
         <div class="row">
-            <div class="col-3 align-self-center">
+            <div class="col-4 align-self-center">
                 <button id="ODMeasure">Measure</button>
            
             </div>
@@ -143,9 +143,6 @@
             <div class="col-3 align-self-center">
                 OD: <br>
                 <div id="ODCurrent">0</div>
-            
-            </div>
-            <div class="col-2 align-self-center">
             
             </div>
         </div>
@@ -174,7 +171,7 @@
     </div>     
     <div id="OD0Container"  class="container">
         <div class="row">
-            <div class="col-4 align-self-center">
+            <div class="col-3 align-self-center">
                 <b><font color="000000"> OD Zero: </font></b> <br> 
                 <div id="OD0Current">0</div>
             
@@ -183,12 +180,14 @@
                 Std: <br>
                 <div id="OD0Std">0</div>
             </div>
+            <div class="col-1 align-self-center">
+            
+            </div>
             <div class="col-4 align-self-center">
                 Actual OD: <br>
                 <input id="OD0Actual" type="number" size="8" value=0 style="width: 6em"/>
             
             </div>
-           
             <div class="col-2 align-self-end">
                 <button id="OD0Cal">Cal</button> 
 
@@ -530,7 +529,7 @@
   <div class="col-3" align='center'>
      <h3>Spectrometer</h3> 
       <b>Full Spectral Measurement:</b><br>
-     <button id="GetSpectrum">Measure</button>&nbsp &nbsp Gain:
+      <button id="GetSpectrumAuto">Auto Measure</button>&nbsp &nbsp<button id="GetSpectrum">Measure</button>&nbsp &nbsp Gain:
              <select id="SpectrumGain">
         <option value="x0">0.5x</option>         
         <option value="x1" selected>1x</option>
@@ -1865,6 +1864,22 @@ function TitleFailure() {
                  }
              }); 
              })
+        });
+    </script>
+
+    <script>
+        $(function() {
+            $('#GetSpectrumAuto').click(function(){
+            var value = $('#SpectrumGain').val();
+            var targetURL = '/GetSpectrumAuto/' + value + '/0';
+            $.ajax({
+                type:'POST',
+                url: targetURL,
+                success:function(response){ 
+                getSysData();
+                }
+            }); 
+            })
         });
     </script>
     

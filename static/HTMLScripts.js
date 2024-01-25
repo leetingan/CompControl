@@ -147,6 +147,7 @@ function updateData(data){
         document.getElementById("LASER650Switch").disabled = (measuring );
         
         document.getElementById("GetSpectrum").disabled = (measuring );
+        document.getElementById("GetSpectrumAuto").disabled = (measuring );
         
         document.getElementById("TempMeasure").disabled = (measuring );
         document.getElementById("TempMeasure2").disabled = (measuring );
@@ -468,10 +469,10 @@ function updateData(data){
         
         var TurbidostatOn = Boolean(data.OD.ON); //True if we are regulating OD
 
-        document.getElementById("Pump1Switch").disabled = (TurbidostatOn);
-        document.getElementById("Pump1Set").disabled = (TurbidostatOn);
-        document.getElementById("Pump2Switch").disabled = (TurbidostatOn);
-        document.getElementById("Pump2Set").disabled = (TurbidostatOn);
+        document.getElementById("Pump1Switch").disabled = (TurbidostatOn && running);
+        document.getElementById("Pump1Set").disabled = (TurbidostatOn && running);
+        document.getElementById("Pump2Switch").disabled = (TurbidostatOn && running);
+        document.getElementById("Pump2Set").disabled = (TurbidostatOn && running);
          if (TurbidostatOn){
              document.getElementById("ODRegulate").setAttribute("style", "border-style:inset;background-color:lightblue")
         } else {
