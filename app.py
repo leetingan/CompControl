@@ -1461,7 +1461,16 @@ def I2CCom(M,device,rw,hl,data1,data2,SMBUSFLAG):
     return(out)
     
     
-    
+@application.route("/SetOD0/<M>/<value>",methods=['POST'])
+def SetOD0(M,value):
+    #Used to set calibration value for OD measurements.
+    global sysData
+    OD0 = float(value)
+    M=str(M)
+    if (M=="0"):
+        M=sysItems['UIDevice']
+    sysData[M]['OD0']['target']=OD0
+    return ('', 204) 
 
 @application.route("/CalibrateOD/<M>/<value>",methods=['POST'])
 def CalibrateOD(M,value):
