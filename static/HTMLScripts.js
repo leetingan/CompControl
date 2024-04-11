@@ -156,6 +156,9 @@ function updateData(data){
         document.getElementById("OD0Cal").disabled = (measuring );
 
         document.getElementById("OD0Cal").disabled = Boolean(data.OD.Calibrating);
+        document.getElementById("ODMeasure").disabled = Boolean(data.OD.Calibrating);
+        document.getElementById("OD0Set").disabled = Boolean(data.OD.Calibrating);
+
         
         
         

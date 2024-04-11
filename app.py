@@ -58,11 +58,11 @@ sysData = {'M0' : {
    'ThermometerExternal' : {'current' : 0.0,'record' : []},
    'ThermometerIR' : {'current' : 0.0,'record' : []},
    'OD' :  {'current' : 0.0,'target' : 0.5,'default' : 0.5,'max': 10, 'min' : 0,'record' : [],'targetrecord' : [],'Measuring' : 0, 'Calibrating' : 0, 'ON' : 0,'Integral' : 0.0,'Integral2' : 0.0,'device' : 'LASER650'},
-   'OD0' : {'target' : 0.0, 'std' : 0.0, 'raw' : 0.0,'max' : 100000.0,'min': 0.0,'LASERb' : 1.833 ,'LASERa' : 0.226, 'LEDFa' : 0.673, 'LEDAa' : 7.0  },
+   'OD0' : {'target' : 65000, 'std' : 0.0, 'raw' : 0.0,'max' : 100000.0,'min': 0.0,'LASERb' : 1.833 ,'LASERa' : 0.226, 'LEDFa' : 0.673, 'LEDAa' : 7.0  },
    'Chemostat' : {'ON' : 0, 'p1' : 0.0, 'p2' : 0.1},
-   'Zigzag': {'ON' : 0, 'Zig' : 0.04,'target' : 0.0,'SwitchPoint' : 0},
-   'Community': {'ON' : 0, 'estKF': 0, 'target': 0, 'estRecord' : [], 'tarRecord' : []},
-   'PID' : {'ON' : 0, 'Kp' : 0.03, 'Ki' : 0.0015, 'Kd' : 0.0},
+   'Zigzag': {'ON' : 0, 'Zig' : 0.03,'target' : 0.0,'SwitchPoint' : 0},
+   'Community': {'ON' : 0, 'estKF': 0, 'target': 0, 'estRecord' : [], 'tarRecord' : [], 'errCum': 0, 'errPrev': 0},
+   'PID' : {'ON' : 0, 'Kp' : 0.0, 'Ki' : 0.0, 'Kd' : 0.0},
    'GrowthRate': {'current' : 0.0,'record' : [],'default' : 2.0},
    'Volume' : {'target' : 20.0,'max' : 50.0, 'min' : 0.0,'ON' : 0},
    'Pump1' :  {'target' : 0.0,'default' : 0.0,'max': 1.0, 'min' : -1.0, 'direction' : 1.0, 'ON' : 0,'record' : [], 'thread' : 0},
@@ -169,13 +169,8 @@ sysItems = {
     }
 }
 
-model = CustModel(n_reactors = 8)
-est = {'M{}'.format(j) : EKF(model, j) for j in range(8)}
-CommErrCum = {'M{}'.format(j) : 0 for j in range(8)}
-CommErrPrev = {'M{}'.format(j) : 0 for j in range(8)}
-start = {'M{}'.format(j) : 0 for j in range(8)}
-   
-
+ekf = {'M{}'.format(j) : EKF() for j in range(8)}
+start = {'M{}'.format(j) : datetime.now() for j in range(8)}
 
 # This section of code is responsible for the watchdog circuit. The circuit is implemented in hardware on the control computer, and requires the watchdog pin be toggled low->high each second, otherwise it will power down all connected devices. This section is therefore critical to operation of the device.
 def runWatchdog():  
@@ -215,6 +210,11 @@ def initialise(M):
     global sysData;
     global sysItems;
     global sysDevices
+    global ekf
+    global start
+
+    ekf[M] = EKF(dev_ind = int(M[-1]))
+    start[M] = 0
 
     for LED in ['LEDA','LEDB','LEDC','LEDD','LEDE','LEDF','LEDG']:
         sysData[M][LED]['target']=sysData[M][LED]['default']
@@ -302,9 +302,9 @@ def initialise(M):
     
     sysData[M]['OD']['current']=0.0
     sysData[M]['OD']['target']=sysData[M]['OD']['default'];
-    sysData[M]['OD0']['target']=65000.0
+    # sysData[M]['OD0']['target']=65000.0
     sysData[M]['OD0']['raw']=65000.0
-    sysData[M]['OD0']['std']=0.0
+    # sysData[M]['OD0']['std']=0.0
     sysData[M]['OD']['device']='LASER650'
     #sysData[M]['OD']['device']='LEDA'
     
@@ -327,7 +327,7 @@ def initialise(M):
     sysData[M]['OD']['Calibrating']=0
     sysData[M]['OD']['Integral']=0.0
     sysData[M]['OD']['Integral2']=0.0
-    sysData[M]['Zigzag']['ON']=0
+    sysData[M]['Zigzag']['ON']=1
     sysData[M]['Zigzag']['target']=0.0
     sysData[M]['Zigzag']['SwitchPoint']=0
     sysData[M]['GrowthRate']['current']=sysData[M]['GrowthRate']['default']
@@ -366,7 +366,12 @@ def initialise(M):
     sysData[M]['Community']['estRecord']=[]
     sysData[M]['Community']['tarRecord']=[]
     sysData[M]['Community']['estKF']=0
-    sysData[M]['PID']['ON']=0
+    sysData[M]['Community']['errCum']=0
+    sysData[M]['Community']['errPrev']=0
+    sysData[M]['PID']['ON']=1
+    sysData[M]['PID']['Kp']=ekf[M].model.parameters['kp']
+    sysData[M]['PID']['Ki']=ekf[M].model.parameters['ki']
+    sysData[M]['PID']['Kd']=ekf[M].model.parameters['kd']
 
     sysDevices[M]['ThermometerInternal']['device']=I2C.get_i2c_device(0x18,2) #Get Thermometer on Bus 2!!!
     sysDevices[M]['ThermometerExternal']['device']=I2C.get_i2c_device(0x1b,2) #Get Thermometer on Bus 2!!!
@@ -1108,6 +1113,8 @@ def CustomProgram(M):
     #Runs a custom program, some examples are included. You can remove/edit this function as you see fit.
     #Note that the custom programs (as set up at present) use an external .csv file with input parameters. THis is done to allow these parameters to easily be varied on the fly. 
     global sysData
+    global ekf
+    global start
     M=str(M)
     program=sysData[M]['Custom']['Program']
     #Subsequent few lines reads in external parameters from a file if you are using any.
@@ -1201,27 +1208,56 @@ def CustomProgram(M):
         SetOutputTarget(M,'UV',UV)
         SetOutputOn(M,'UV',1)
         addTerminal(M,'Program = ' + str(program) + ' UV= ' + str(UV)+  ' integral= ' + str(integral))
-    elif (program=="C4"): #UV Integral Control Program Mk 4
-        rategain=float(Params[0]) 
-        timept=sysData[M]['Custom']['Status'] #This is the timestep as we follow in minutes
-        
-        UV=0.001*math.exp(timept*rategain) #So we just exponentialy increase UV over time!
-        sysData[M]['Custom']['param1']=UV
-        SetOutputTarget(M,'UV',UV)
-        SetOutputOn(M,'UV',1)
-        
-        timept=timept+1
-        sysData[M]['Custom']['Status']=timept
-            
-    elif (program=="C5"): # use this code for Ec Pp community parameterization
+    
+    elif (program=="C4"): # Program for 069-2, CC7, name = "CC7"
         now = datetime.now()
         TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
         CurrentTime = round(TimeDur.total_seconds()/3600,4)
-        if (CurrentTime < 8):
-            sysData[M]['Thermostat']['target'] = 36
-        elif (CurrentTime < 16):
-            sysData[M]['Thermostat']['target'] = 32
-        else:
+        if M[-1] == '0':
+            if (CurrentTime < 8):
+                sysData[M]['Thermostat']['target'] = 26
+            elif (CurrentTime < 16):
+                sysData[M]['Thermostat']['target'] = 29
+            else:
+                sysData[M]['Thermostat']['target'] = 33
+        elif M[-1] == '1':
+            if (CurrentTime < 8):
+                sysData[M]['Thermostat']['target'] = 29
+            elif (CurrentTime < 16):
+                sysData[M]['Thermostat']['target'] = 33
+            else:
+                sysData[M]['Thermostat']['target'] = 36
+        elif M[-1] == '2':
+            sysData[M]['Thermostat']['target'] = 26
+        elif M[-1] == '3':
+            sysData[M]['Thermostat']['target'] = 33
+            
+    elif (program=="C5"): # Program for 069-2, CC10&CC9, name = "CC10/9"
+        now = datetime.now()
+        TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
+        CurrentTime = round(TimeDur.total_seconds()/3600,4)
+        if M[-1] == '0':
+            if (CurrentTime < 8):
+                sysData[M]['Thermostat']['target'] = 26
+            elif (CurrentTime < 16):
+                sysData[M]['Thermostat']['target'] = 29
+            else:
+                sysData[M]['Thermostat']['target'] = 33
+        elif M[-1] == '1':
+            if (CurrentTime < 8):
+                sysData[M]['Thermostat']['target'] = 29
+            elif (CurrentTime < 16):
+                sysData[M]['Thermostat']['target'] = 33
+            else:
+                sysData[M]['Thermostat']['target'] = 36
+        elif M[-1] == '2':
+            if (CurrentTime < 8):
+                sysData[M]['Thermostat']['target'] = 26
+            elif (CurrentTime < 16):
+                sysData[M]['Thermostat']['target'] = 33
+            else:
+                sysData[M]['Thermostat']['target'] = 36
+        elif M[-1] == '3':
             sysData[M]['Thermostat']['target'] = 26
             
     elif (program=="C6"): # use this code for Ec Pp community parameterization
@@ -1233,111 +1269,177 @@ def CustomProgram(M):
         else:
             sysData[M]['Thermostat']['target'] = 36 - int(M[-1])
         
-    elif (program=="C7"): # use this code for Ec Pp community parameterization
-        now = datetime.now()
-        TimeDur = now-sysData[M]['Experiment']['startTimeRaw']
-        CurrentTime = round(TimeDur.total_seconds()/3600,4)
-        if (CurrentTime < 12):
-            sysData[M]['Thermostat']['target'] = 29 + 4 + int(M[-1])
-        else:
-            sysData[M]['Thermostat']['target'] = 36 - 4 - int(M[-1])
-
-    elif (program == 'C8'): # use this program to control Ec Pp community using temperature ZERO TOLERANCE EDITION
-        global est
-        global CommErrCum
-        global CommErrPrev
-        global start
-        with_ekf = False
-        addTerminal(M, "Community Control activated - temp control")
-
-        min_fl = 0.05
-        max_fl = 0.5
+    elif (program=="C7"): # use this code for test the Ec Pp estimation implementation
+        pre_time_h = 1 # hours
         if sysData[M]['Community']['ON'] == 0:
             start[M] = datetime.now()
         sysData[M]['Community']['ON'] = 1
         now = datetime.now()
         TimeDur = now-start[M]
         CurrentTime_h = round(TimeDur.total_seconds()/3600,4)
-        if CurrentTime_h < 45/60:
-            sysData[M]['Thermostat']['target'] = 33
+        if CurrentTime_h < pre_time_h:
+            sysData[M]['Thermostat']['target'] = ekf[M].model.parameters['crit_temp']
         else:
-            ### Perform control algorithm
+            if M[-1] == '0' or M[-1] == '1':
+                if (CurrentTime_h < 4 + pre_time_h):
+                    sysData[M]['Thermostat']['target'] = 29
+                elif (CurrentTime_h < 8 + pre_time_h):
+                    sysData[M]['Thermostat']['target'] = 36
+                elif (CurrentTime_h < 12 + pre_time_h):
+                    sysData[M]['Thermostat']['target'] = 31
+                elif (CurrentTime_h < 16 + pre_time_h):
+                    sysData[M]['Thermostat']['target'] = 35
+                elif (CurrentTime_h < 20 + pre_time_h):
+                    sysData[M]['Thermostat']['target'] = 32
+                else:
+                    sysData[M]['Thermostat']['target'] = 34
+            else:
+                if (CurrentTime_h < 8 + pre_time_h):
+                    sysData[M]['Thermostat']['target'] = ekf[M].model.parameters['crit_temp']
+                elif (CurrentTime_h < 12 + pre_time_h):
+                    sysData[M]['Thermostat']['target'] = 32
+                else:
+                    sysData[M]['Thermostat']['target'] = ekf[M].model.parameters['crit_temp']
+
+        ### Perform State Estimation
+        ekf[M].model.dithered = sysData[M]['Zigzag']['ON']
+        if M[-1] == '0':
+            ekf[M].set_r_coeff('Faith')
+        elif M[-1] == '1':
+            ekf[M].set_r_coeff('Alabama')
+        elif M[-1] == '2':
+            ekf[M].set_r_coeff('George')
+        elif M[-1] == '3':
+            ekf[M].set_r_coeff('Tammy')
+        dil = sysData[M]['Zigzag']['target'] < 1 if sysData[M]['Zigzag']['ON'] else False
+        u = np.array([sysData[M]['ThermometerIR']['current'], dil])
+        CurrentOD = sysData[M]['OD']['current']
+        CurrentFl = sysData[M]['FP1']['Emit1']*sysData[M]['FP1']['Base']
+        z = np.array([CurrentOD, CurrentFl])
+        ekf[M].estimate(CurrentTime_h, u, z)
+        CommEst = round(ekf[M].est['p']/(ekf[M].est['p']+ekf[M].est['e']),3)
+        sysData[M]['Community']['estKF'] = CommEst
+
+    elif (program == 'C8'): # use this program to control Ec Pp community using temperature
+        pre_time_h = 1 # hours
+        if sysData[M]['Community']['ON'] == 0:
+            start[M] = datetime.now()
+        sysData[M]['Community']['ON'] = 1
+        now = datetime.now()
+        TimeDur = now-start[M]
+        CurrentTime_s = TimeDur.total_seconds()
+        CurrentTime_h = round(CurrentTime_s/3600,4)
+
+        # Set reactor setup
+        if M[-1] == '0':
+            ekf[M].set_r_coeff('Faith')
+        elif M[-1] == '1':
+            ekf[M].set_r_coeff('Allan')
+        elif M[-1] == '2':
+            ekf[M].set_r_coeff('George')
+        elif M[-1] == '3':
+            ekf[M].set_r_coeff('Tammy')
+        elif M[-1] == '4':
+            ekf[M].set_r_coeff('Taylor')
+        elif M[-1] == '5':
+            ekf[M].set_r_coeff('Garth')
+        
+        # Set reference pattern
+        CommTarget = -1
+        if CurrentTime_h < pre_time_h:
+            sysData[M]['Thermostat']['target'] = ekf[M].model.parameters['crit_temp']
+        else:
             # Get target ratio
-            # CommTarget = sysData[M]['Custom']['Status'] # takes target value from the custom input box
-            CurrentTime_h -= 45/60
-            if M[-1] == '0':
-                if (CurrentTime_h < 6):
-                    CommTarget = 0.8 * 100
-                elif (CurrentTime_h < 12):
-                    CommTarget = 0.2 * 100
+            if M[-1] == '0' or M[-1] == '1':
+                if (CurrentTime_h < 6 + pre_time_h):
+                    CommTarget = 0.3
+                elif (CurrentTime_h < 16 + pre_time_h):
+                    CommTarget = 0.7
                 else:
-                    CommTarget = 0.8 * 100
-            elif M[-1] == '1':
-                if (CurrentTime_h < 6):
-                    CommTarget = 0.2 * 100
-                elif (CurrentTime_h < 12):
-                    CommTarget = 0.8 * 100
-                else:
-                    CommTarget = 0.2 * 100
-            elif M[-1] == '2':
-                if (CurrentTime_h < 3):
-                    CommTarget = 0.2 * 100
-                elif (CurrentTime_h < 6):
-                    CommTarget = 0.4 * 100
-                elif (CurrentTime_h < 9):
-                    CommTarget = 0.6 * 100
-                else:
-                    CommTarget = 0.8 * 100
-            elif M[-1] == '3':
-                if (CurrentTime_h < 3):
-                    CommTarget = 0.8 * 100
-                elif (CurrentTime_h < 6):
-                    CommTarget = 0.6 * 100
-                elif (CurrentTime_h < 9):
-                    CommTarget = 0.4 * 100
-                else:
-                    CommTarget = 0.2 * 100
-            elif M[-1] == '4':
-                CommTarget = 0.5 * 100
-            sysData[M]['Community']['target'] = CommTarget #this stores this value for easy plotting after the experiment
-
-            # Get current ratio
-            if with_ekf:
-                CurrentTemp = sysData[M]['ThermometerIR']['current']
-                CurrentOD = sysData[M]['OD']['current']
-                CurrentFl = sysData[M]['FP1']['Emit1']*sysData[M]['FP1']['Base'] # this signal MUST be tracked from FP1 emit1
-                z = np.array([CurrentOD, CurrentFl])
-                est[M].estimate(CurrentTime, CurrentTemp, z)
-                CommEst = round(est[M].est['p']/(est[M].est['p']+est[M].est['e'])*100,2)
+                    CommTarget = 0.3
             else:
-                CommEst = (sysData[M]['FP1']['Emit1'] - min_fl)/(max_fl - min_fl)*100 #this stores this value for easy plotting after the experiment
-            sysData[M]['Community']['estKF'] = CommEst
+                CommTarget = -0.4*math.sin(2*math.pi*(CurrentTime_h-pre_time_h)/20) + 0.5
+        sysData[M]['Community']['target'] = CommTarget
+        
+        CustomCompControl(M, CurrentTime_s)
 
-            # Derive target temperature
-            CommErr = CommTarget - CommEst #this should be negative if above target, positive if below
-            if sysData[M]['PID']['ON']:
-                CritTemp = 33.5 # around this temperature both bacteria should be growing at the same rate
-                CommErrCum[M] += CommErr * sysData[M]['PID']['Ki']
-                CommErrDiff = (CommErr - CommErrPrev[M]) * sysData[M]['PID']['Kd']
-                ThTarget = CritTemp - CommErr * sysData[M]['PID']['Kp'] - CommErrCum[M] - CommErrDiff
-                # Constrain the target temperature to desired range
-                ThTargetC = min(ThTarget, 36)
-                ThTargetC = max(ThTarget, 29)
-                # Anti Reset Windup
-                CommErrCum[M] -= (ThTarget - ThTargetC)
-                sysData[M]['Thermostat']['target'] = ThTargetC
-            else:
-                if CommErr > 0 :
-                    addTerminal(M, "below target, setting temp to 29")
-                    sysData[M]['Thermostat']['target'] = 29 #temp to be pro pseudomonas
-                    
-                elif CommErr == 0 : 
-                    addTerminal(M, "No selective action taken")
-                    
-                elif CommErr < 0: 
-                    addTerminal(M, "Above target, setting temp target to 36")
-                    sysData[M]['Thermostat']['target'] = 36 #temp for pro coli
+    elif (program == 'C9'): # use this program for long term Ec Pp community control using temperature
+        pre_time_h = 2 # hours
+        if sysData[M]['Community']['ON'] == 0:
+            start[M] = datetime.now()
+        sysData[M]['Community']['ON'] = 1
+        now = datetime.now()
+        TimeDur = now-start[M]
+        CurrentTime_s = TimeDur.total_seconds()
+        CurrentTime_h = round(CurrentTime_s/3600,4)
 
+        # Set reactor setup
+        if M[-1] == '0':
+            ekf[M].set_r_coeff('Faith')
+        elif M[-1] == '1':
+            ekf[M].set_r_coeff('Arthur')
+        elif M[-1] == '2':
+            ekf[M].set_r_coeff('George')
+        elif M[-1] == '3':
+            ekf[M].set_r_coeff('Morlock')
+        
+        # Set reference pattern
+        CommTarget = -1
+        if CurrentTime_h < pre_time_h or M[-1] == '2' or M[-1] == '3':
+            sysData[M]['Thermostat']['target'] = ekf[M].model.parameters['crit_temp']
+        else:
+            # Get target ratio
+            CommTarget = 0.3
+        sysData[M]['Community']['target'] = CommTarget
+        
+        CustomCompControl(M, CurrentTime_s)
+
+    return
+
+def CustomCompControl(M, CurrentTime_s):
+    # Performs state estimation and derives target temperature if the custom program composition control is running
+    global sysData
+    global ekf
+    ### Perform State Estimation
+    ekf[M].model.dithered = sysData[M]['Zigzag']['ON']
+    dil = sysData[M]['Zigzag']['target'] < 1 if sysData[M]['Zigzag']['ON'] else False
+    u = np.array([sysData[M]['ThermometerIR']['current'], dil])
+    CurrentOD = sysData[M]['OD']['current']
+    CurrentFl = sysData[M]['FP1']['Emit1']*sysData[M]['FP1']['Base']
+    z = np.array([CurrentOD, CurrentFl])
+    ekf[M].estimate(CurrentTime_s, u, z)
+    CommEst = round(ekf[M].est['p']/(ekf[M].est['p']+ekf[M].est['e']),3)
+    sysData[M]['Community']['estKF'] = CommEst
+
+    # Derive target temperature
+    if sysData[M]['Community']['target'] >= 0:
+        CommErr = sysData[M]['Community']['target'] - CommEst #this should be negative if above target, positive if below
+        if sysData[M]['PID']['ON']:
+            sysData[M]['Community']['errCum'] += CommErr * sysData[M]['PID']['Ki']
+            CommErrDiff = (CommErr - sysData[M]['Community']['errPrev']) * sysData[M]['PID']['Kd']
+            th_target = ekf[M].model.parameters['crit_temp'] - CommErr * sysData[M]['PID']['Kp'] - sysData[M]['Community']['errCum'] - CommErrDiff
+            # Constrain the target temperature to desired range
+            temp_target = th_target
+            temp_target = min(temp_target, 36)
+            temp_target = max(temp_target, 29)
+            sysData[M]['Thermostat']['target'] = temp_target
+            sysData[M]['Community']['errPrev'] = CommErr
+            # Anti Reset Windup
+            if sysData[M]['PID']['Ki'] > 0:
+                if abs(th_target - temp_target) > 0:
+                    sysData[M]['Community']['errCum'] -= CommErr * sysData[M]['PID']['Ki']
+        else:
+            if CommErr > 0 :
+                addTerminal(M, "below target, setting temp to 29")
+                sysData[M]['Thermostat']['target'] = 29 #temp to be pro pseudomonas
+                
+            elif CommErr == 0 : 
+                addTerminal(M, "No selective action taken")
+                
+            elif CommErr < 0: 
+                addTerminal(M, "Above target, setting temp target to 36")
+                sysData[M]['Thermostat']['target'] = 36 #temp for pro coli
+    
     return
 
 
@@ -1577,7 +1679,16 @@ def I2CCom(M,device,rw,hl,data1,data2,SMBUSFLAG):
     return(out)
     
     
-    
+@application.route("/SetOD0/<M>/<value>",methods=['POST'])
+def SetOD0(M,value):
+    #Used to set calibration value for OD measurements.
+    global sysData
+    OD0 = float(value)
+    M=str(M)
+    if (M=="0"):
+        M=sysItems['UIDevice']
+    sysData[M]['OD0']['target']=OD0
+    return ('', 204) 
 
 @application.route("/CalibrateOD/<M>/<value>",methods=['POST'])
 def CalibrateOD(M,value):
@@ -1595,6 +1706,7 @@ def CalibrateOD(M,value):
     return ('', 204) 
 
 def CalibrateCallback(M,ODActual):
+        
     device=sysData[M]['OD']['device']
 
     # Stir, Measure
@@ -1709,12 +1821,12 @@ def MeasureOD(M):
     
         a=sysData[M]['OD0']['LASERa']#Retrieve the calibration factors for OD.
         b=sysData[M]['OD0']['LASERb'] 
-        try:
+        if abs(sysData[M]['OD0']['raw']) > 0.001: # avoid devision by 0
             raw=math.log10(sysData[M]['OD0']['target']/sysData[M]['OD0']['raw'])
             sysData[M]['OD']['current']=raw*b + raw*raw*a
-        except:
-            sysData[M]['OD']['current']=0;
-            print(str(datetime.now()) + ' OD Measurement exception on ' + str(device))
+        else:
+            sysData[M]['OD']['current']=0
+            print(str(datetime.now()) + ' OD Measurement close to 0 on ' + str(device))
     elif (device=='LEDF'):
         out=GetTransmission(M,'LEDF',['CLEAR'],7,255)
 
@@ -2246,6 +2358,7 @@ def runExperiment(M,placeholder):
     
     sysData[M]['OD']['Measuring']=1 #Begin measuring - this flag is just to indicate that a measurement is currently being taken.
     
+    MeasureFP(M) #And now fluorescent protein concentrations. 
     #We now meausre OD 4 times and take the average to reduce noise when in auto mode!
     ODV=0.0
     for i in [0, 1, 2, 3]:
@@ -2257,7 +2370,6 @@ def runExperiment(M,placeholder):
     MeasureTemp(M,'Internal') #Measuring all temperatures
     MeasureTemp(M,'External')
     MeasureTemp(M,'IR')
-    MeasureFP(M) #And now fluorescent protein concentrations. 
 	
     if (sysData[M]['Experiment']['ON']==0): #We do another check post-measurement to see whether we need to end the experiment.
         turnEverythingOff(M)
